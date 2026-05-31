@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mega BMI Calculator</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:"Segoe UI",sans-serif}
+body{min-height:100vh;background:linear-gradient(135deg,#0f172a,#4f46e5,#9333ea);color:white;padding:25px}
+body.light{background:linear-gradient(135deg,#dbeafe,#c7d2fe,#f3e8ff);color:#111827}
+.wrapper{max-width:1200px;margin:auto;display:grid;grid-template-columns:1fr .95fr;gap:25px}
+.card{padding:28px;border-radius:28px;background:rgba(255,255,255,.14);backdrop-filter:blur(18px);box-shadow:0 25px 60px rgba(0,0,0,.3)}
+body.light .card{background:rgba(255,255,255,.75)}
+.topbar,.row,.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{border:none;border-radius:15px;padding:13px;font-weight:800;cursor:pointer}
+.small-btn,.action-btn{background:white;color:#111827}
+.calculate{width:100%;margin-top:8px;background:linear-gradient(135deg,#22c55e,#14b8a6);color:white;font-size:17px}
+h1,h2{text-align:center}.subtitle{text-align:center;margin:8px 0 22px;opacity:.85}
+.input-box{margin-bottom:15px}label{display:block;margin-bottom:7px;font-weight:700}
+input,select{width:100%;padding:14px;border:none;border-radius:15px;font-size:16px;outline:none}
+input[type=range]{padding:0}
+.hidden{display:none}.error{display:none;background:rgba(239,68,68,.35);padding:12px;border-radius:14px;margin-top:14px;text-align:center}
+.result{display:none;margin-top:20px;padding:20px;border-radius:22px;background:rgba(255,255,255,.18);text-align:center}
+.bmi-value{font-size:52px;font-weight:900}.status{font-size:22px;font-weight:900}.note{margin-top:8px}
+.gauge{width:230px;height:115px;margin:25px auto;position:relative;overflow:hidden}
+.arc{width:230px;height:230px;border-radius:50%;background:conic-gradient(#facc15 0deg 166deg,#22c55e 166deg 225deg,#f97316 225deg 270deg,#ef4444 270deg 360deg);position:absolute;top:0}
+.inner{width:170px;height:170px;background:#24155f;border-radius:50%;position:absolute;top:30px;left:30px}
+body.light .inner{background:#eef2ff}
+.needle{width:4px;height:95px;background:white;position:absolute;bottom:0;left:113px;transform-origin:bottom;transform:rotate(-90deg);transition:.8s}
+.scale{position:relative;height:30px;border-radius:30px;background:linear-gradient(to right,#facc15 0% 46.25%,#22c55e 46.25% 62.5%,#f97316 62.5% 75%,#ef4444 75% 100%);margin:25px 0 14px}
+.marker{position:absolute;top:-12px;left:0;width:9px;height:54px;background:white;border-radius:20px;transition:.8s}
+.scale-numbers{display:grid;grid-template-columns:repeat(5,1fr);font-size:13px}.scale-numbers span{text-align:center}
+.box,.history-item{padding:14px;border-radius:16px;background:rgba(255,255,255,.15);margin-top:10px}
+.history-item{display:flex;justify-content:space-between;gap:10px;font-weight:700}
+.actions{margin-top:15px}
+footer{text-align:center;margin-top:25px;opacity:.8}
+.confetti{position:fixed;width:10px;height:10px;top:-10px;animation:fall 2.5s linear forwards}
+@keyframes fall{to{transform:translateY(110vh) rotate(720deg);opacity:0}}
+@media(max-width:900px){.wrapper,.row,.topbar,.actions{grid-template-columns:1fr}}
+@media print{.topbar,.actions,.calculate,footer{display:none}body{background:white;color:black}.card{box-shadow:none;background:white}}
+</style>
+</head>
+
+<body>
+
+<div class="wrapper">
+
+<div class="card">
+  <div class="topbar">
+    <button class="small-btn" onclick="toggleTheme()">🌙 / ☀️ Theme</button>
+    <button class="small-btn" onclick="resetAll()">Reset</button>
+  </div>
+
+  <h1>💪 Mega BMI Calculator</h1>
+  <p class="subtitle">BMI, graph, speedometer, history, PDF, share & sliders</p>
+
+  <div class="row">
+    <div class="input-box">
+      <label>Age</label>
+      <input type="number" id="age" placeholder="18">
+    </div>
+    <div class="input-box">
+      <label>Gender</label>
+      <select id="gender">
+        <option value="none">Select</option>
+        <option>Male</option>
+        <option>Female</option>
+        <option>Other</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="input-box">
+    <label>Weight Unit</label>
+    <select id="weightUnit">
+      <option value="kg">Kilograms</option>
+      <option value="lbs">Pounds</option>
+    </select>
+  </div>
+
+  <div class="input-box">
+    <label>Weight: <span id="weightLabel">60</span></label>
+    <input type="range" id="weightSlider" min="20" max="200" value="60" oninput="syncWeight(this.value)">
+    <input type="number" id="weight" value="60" oninput="syncWeightSlider(this.value)">
+  </div>
+
+  <div class="input-box">
+    <label>Height Unit</label>
+    <select id="heightUnit" onchange="toggleHeightFields()">
+      <option value="cm">Centimeters</option>
+      <option value="ft">Feet & Inches</option>
+    </select>
+  </div>
+
+  <div class="input-box" id="cmBox">
+    <label>Height cm: <span id="heightLabel">170</span></label>
+    <input type="range" id="heightSlider" min="80" max="230" value="170" oninput="syncHeight(this.value)">
+    <input type="number" id="heightCm" value="170" oninput="syncHeightSlider(this.value)">
+  </div>
+
+  <div id="feetBox" class="hidden">
+    <div class="row">
+      <div class="input-box">
+        <label>Feet</label>
+        <input type="number" id="feet" placeholder="5">
+      </div>
+      <div class="input-box">
+        <label>Inches</label>
+        <input type="number" id="inches" placeholder="8">
+      </div>
+    </div>
+  </div>
+
+  <button class="calculate" onclick="calculateBMI()">Calculate BMI</button>
+
+  <div class="error" id="error"></div>
+
+  <div class="result" id="result">
+    <div class="bmi-value" id="bmiValue">0.0</div>
+    <div class="status" id="status"></div>
+    <p class="note" id="note"></p>
+  </div>
+
+  <div class="actions">
+    <button class="action-btn" onclick="downloadPDF()">Download PDF</button>
+    <button class="action-btn" onclick="shareResult()">Share Result</button>
+    <button class="action-btn" onclick="window.print()">Print</button>
+    <button class="action-btn" onclick="clearHistory()">Clear History</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>🎯 BMI Speedometer</h2>
+
+  <div class="gauge">
+    <div class="arc"></div>
+    <div class="inner"></div>
+    <div class="needle" id="needle"></div>
+  </div>
+
+  <h2>📊 BMI Scale</h2>
+  <div class="scale"><div class="marker" id="marker"></div></div>
+  <div class="scale-numbers">
+    <span>0</span><span>18.5</span><span>25</span><span>30</span><span>40+</span>
+  </div>
+
+  <div class="box">🟡 Underweight: &lt; 18.5</div>
+  <div class="box">🟢 Normal: 18.5 - 24.9</div>
+  <div class="box">🟠 Overweight: 25 - 29.9</div>
+  <div class="box">🔴 Obese: 30+</div>
+
+  <div class="box">
+    <h3>Healthy Weight Range</h3>
+    <p id="healthyRange">Enter height to see range</p>
+  </div>
+
+  <div class="box">
+    <h3>Last 5 History</h3>
+    <div id="historyList">No history yet</div>
+  </div>
+</div>
+
+</div>
+
+<footer>Made by Palak | BMI Calculator Project</footer>
+
+<script>
+let history = JSON.parse(localStorage.getItem("bmiHistory")) || [];
+let lastResult = null;
+
+if(localStorage.getItem("theme")==="light") document.body.classList.add("light");
+showHistory();
+
+document.addEventListener("keydown", e => {
+  if(e.key === "Enter") calculateBMI();
+});
+
+function syncWeight(v){
+  document.getElementById("weight").value = v;
+  document.getElementById("weightLabel").innerText = v;
+}
+function syncWeightSlider(v){
+  document.getElementById("weightSlider").value = v;
+  document.getElementById("weightLabel").innerText = v;
+}
+function syncHeight(v){
+  document.getElementById("heightCm").value = v;
+  document.getElementById("heightLabel").innerText = v;
+}
+function syncHeightSlider(v){
+  document.getElementById("heightSlider").value = v;
+  document.getElementById("heightLabel").innerText = v;
+}
+
+function toggleTheme(){
+  document.body.classList.toggle("light");
+  localStorage.setItem("theme", document.body.classList.contains("light") ? "light" : "dark");
+}
+
+function toggleHeightFields(){
+  const unit = document.getElementById("heightUnit").value;
+  document.getElementById("cmBox").classList.toggle("hidden", unit !== "cm");
+  document.getElementById("feetBox").classList.toggle("hidden", unit !== "ft");
+  resetVisuals();
+}
+
+function resetVisuals(){
+  document.getElementById("result").style.display = "none";
+  document.getElementById("marker").style.left = "0%";
+  document.getElementById("needle").style.transform = "rotate(-90deg)";
+  document.getElementById("healthyRange").innerText = "Enter height to see range";
+}
+
+function showError(msg){
+  document.getElementById("error").innerText = msg;
+  document.getElementById("error").style.display = "block";
+  document.getElementById("result").style.display = "none";
+}
+function hideError(){document.getElementById("error").style.display = "none"}
+
+function getHeightInMeters(){
+  const unit = document.getElementById("heightUnit").value;
+
+  if(unit === "cm"){
+    const cm = Number(document.getElementById("heightCm").value);
+    if(cm <= 0) return 0;
+    return cm / 100;
+  }
+
+  const feet = Number(document.getElementById("feet").value);
+  const inches = Number(document.getElementById("inches").value);
+  if(feet <= 0 || inches < 0) return 0;
+  return (feet * 12 + inches) * 0.0254;
+}
+
+function animateBMI(value){
+  let current = 0;
+  const target = Number(value);
+  const display = document.getElementById("bmiValue");
+
+  const interval = setInterval(() => {
+    current += target / 35;
+    if(current >= target){
+      current = target;
+      clearInterval(interval);
+    }
+    display.innerText = current.toFixed(1);
+  }, 18);
+}
+
+function calculateBMI(){
+  hideError();
+
+  const age = Number(document.getElementById("age").value);
+  let weight = Number(document.getElementById("weight").value);
+  const weightUnit = document.getElementById("weightUnit").value;
+
+  if(age && age < 2){showError("Age 2 se upar daal bro."); return}
+  if(weight <= 0){showError("Valid weight daal bro."); return}
+
+  if(weightUnit === "lbs") weight *= 0.453592;
+
+  const height = getHeightInMeters();
+  if(height <= 0){showError("Valid height daal bro."); return}
+
+  const bmi = weight / (height * height);
+
+  let status, note, color;
+  if(bmi < 18.5){
+    status = "Underweight"; note = "Balanced meals and regular routine can help."; color = "#facc15";
+  } else if(bmi < 25){
+    status = "Normal Weight"; note = "Great! Your BMI is in the healthy range."; color = "#22c55e"; confetti();
+  } else if(bmi < 30){
+    status = "Overweight"; note = "Regular activity and balanced meals may help."; color = "#f97316";
+  } else {
+    status = "Obese"; note = "Consider getting guidance from a health professional."; color = "#ef4444";
+  }
+
+  const result = document.getElementById("result");
+  result.style.display = "block";
+  result.style.border = "2px solid " + color;
+
+  document.getElementById("status").innerText = status;
+  document.getElementById("status").style.color = color;
+  document.getElementById("note").innerText = note;
+
+  animateBMI(bmi.toFixed(1));
+
+  const percent = Math.min((bmi / 40) * 100, 100);
+  document.getElementById("marker").style.left = percent + "%";
+
+  const angle = -90 + (percent * 1.8);
+  document.getElementById("needle").style.transform = `rotate(${angle}deg)`;
+
+  let minW = 18.5 * height * height;
+  let maxW = 24.9 * height * height;
+  let rangeText;
+
+  if(weightUnit === "lbs"){
+    minW *= 2.20462;
+    maxW *= 2.20462;
+    rangeText = `${minW.toFixed(1)} lbs - ${maxW.toFixed(1)} lbs`;
+  } else {
+    rangeText = `${minW.toFixed(1)} kg - ${maxW.toFixed(1)} kg`;
+  }
+
+  document.getElementById("healthyRange").innerText = rangeText;
+
+  lastResult = {
+    bmi: bmi.toFixed(1),
+    status,
+    range: rangeText,
+    date: new Date().toLocaleString()
+  };
+
+  saveHistory(lastResult);
+}
+
+function saveHistory(item){
+  history.unshift(item);
+  history = history.slice(0,5);
+  localStorage.setItem("bmiHistory", JSON.stringify(history));
+  showHistory();
+}
+
+function showHistory(){
+  const list = document.getElementById("historyList");
+  if(!history.length){
+    list.innerText = "No history yet";
+    return;
+  }
+
+  list.innerHTML = "";
+  history.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "history-item";
+    div.innerHTML = `<span>${item.bmi} BMI<br><small>${item.date}</small></span><span>${item.status}</span>`;
+    list.appendChild(div);
+  });
+}
+
+function clearHistory(){
+  history = [];
+  localStorage.removeItem("bmiHistory");
+  showHistory();
+}
+
+function resetAll(){
+  document.getElementById("age").value = "";
+  document.getElementById("gender").value = "none";
+  document.getElementById("weight").value = 60;
+  document.getElementById("weightSlider").value = 60;
+  document.getElementById("weightLabel").innerText = 60;
+  document.getElementById("heightCm").value = 170;
+  document.getElementById("heightSlider").value = 170;
+  document.getElementById("heightLabel").innerText = 170;
+  document.getElementById("feet").value = "";
+  document.getElementById("inches").value = "";
+  hideError();
+  resetVisuals();
+}
+
+function downloadPDF(){
+  if(!lastResult){
+    alert("Pehle BMI calculate kar bro.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.setFontSize(22);
+  doc.text("BMI Result", 20, 25);
+
+  doc.setFontSize(14);
+  doc.text(`Date: ${lastResult.date}`, 20, 45);
+  doc.text(`BMI: ${lastResult.bmi}`, 20, 60);
+  doc.text(`Category: ${lastResult.status}`, 20, 75);
+  doc.text(`Healthy Weight Range: ${lastResult.range}`, 20, 90);
+  doc.text("Generated by Mega BMI Calculator", 20, 115);
+
+  doc.save("bmi-result.pdf");
+}
+
+function shareResult(){
+  if(!lastResult){
+    alert("Pehle BMI calculate kar bro.");
+    return;
+  }
+
+  const text = `My BMI is ${lastResult.bmi} (${lastResult.status}). Healthy range: ${lastResult.range}`;
+
+  if(navigator.share){
+    navigator.share({
+      title: "BMI Result",
+      text: text
+    });
+  } else {
+    navigator.clipboard.writeText(text);
+    alert("Result copied to clipboard!");
+  }
+}
+
+function confetti(){
+  for(let i=0;i<35;i++){
+    const piece = document.createElement("div");
+    piece.className = "confetti";
+    piece.style.left = Math.random() * 100 + "vw";
+    piece.style.background = ["#22c55e","#facc15","#38bdf8","#f472b6"][Math.floor(Math.random()*4)];
+    piece.style.animationDuration = (Math.random() * 2 + 1.5) + "s";
+    document.body.appendChild(piece);
+    setTimeout(() => piece.remove(), 3000);
+  }
+}
+</script>
+
+</body>
+</html>
